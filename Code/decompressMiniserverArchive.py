@@ -17,23 +17,21 @@ def uncompressArchive(filename, rootpath):
                 offset,size = struct.unpack("<LL", entry[-8:])
                 if offset == 0:
                     break
-                pathname = entry[0:-8].decode('utf8').rstrip('\0')
+                pathname = entry[:-8].decode('utf8').rstrip('\0')
                 print("- %s %08x %d" % (pathname, offset, size))
                 foffset += 0x100
                 f.seek(offset)
                 data = f.read(size)
                 dpath = os.path.join(rootpath, pathname)
-                directory = os.path.dirname(dpath)
-                if directory:
+                if directory := os.path.dirname(dpath):
                     if not os.path.exists(directory):
                         os.makedirs(directory)
-                fo = open(dpath, 'wb')
-                fo.write(gzip.decompress(data))
-                fo.close()
+                with open(dpath, 'wb') as fo:
+                    fo.write(gzip.decompress(data))
     elif extension == '.zip':
         with zipfile.ZipFile(filename, 'r') as zip: 
             for info in zip.infolist():
-                print('- %s' % info.filename)
+                print(f'- {info.filename}')
                 zip.extract(info, path=rootpath)
 
 uncompressArchive('commonv2.agz', 'web')

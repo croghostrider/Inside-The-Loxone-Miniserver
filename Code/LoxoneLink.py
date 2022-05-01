@@ -15,12 +15,40 @@ from enum import IntEnum
 from LoxoneAESKeys import *
 
 def getDeviceType(devType):
-    if devType == 0x01:
+    if devType == 0x00:
+        return "-Miniserver-"
+    elif devType == 0x01:
         return "Extension" # CBusLoxMOREHandler
+    elif devType in [0x0A, 0x0F]:
+        return "Fröling Extension" # CBusLoxC485MHandler (it's a Modbus device)
+    elif devType == 0x0B:
+        return "Relay Extension" # CBusLoxRELHandler
+    elif devType == 0x0C:
+        return "Air Base Extension" # CBusLoxCAIRHandler
+    elif devType == 0x0D:
+        return "Dali Extension" # CBusLoxDaliHandler
+    elif devType == 0x0E:
+        return "Modbus 232 Extension" # unknown
+    elif devType == 0x10:
+        return "-NAT device-"
+    elif devType == 0x12:
+        return "Internorm Extension" # CBusLoxInternormHandler
+    elif devType == 0x13:
+        return "Tree Base Extension" # CBusTreeHandler
     elif devType == 0x02:
         return "Dimmer Extension" # CBusLoxDIMMHandler
+    elif devType == 0x14:
+        return "DI Extension" # CBusLoxDigInHandler
+    elif devType == 0x15:
+        return "KNX Extension" # CBusKNXHandler
+    elif devType == 0x16:
+        return "AI Extension"
+    elif devType == 0x17:
+        return "AO Extension"
     elif devType == 0x03:
         return "EnOcean Extension" # CBusLoxCENOHandler
+    elif devType == 0x1F:
+        return "-Legacy Software Update-"
     elif devType == 0x04:
         return "DMX Extension" # CBusLoxCDMXHandler
     elif devType == 0x05:
@@ -33,42 +61,6 @@ def getDeviceType(devType):
         return "IR Extension" # CBusLoxC485IHandler
     elif devType == 0x09:
         return "Modbus Extension" # CBusLoxC485MHandler
-    elif devType == 0x0A:
-        return "Fröling Extension" # CBusLoxC485MHandler (it's a Modbus device)
-    elif devType == 0x0B:
-        return "Relay Extension" # CBusLoxRELHandler
-    elif devType == 0x0C:
-        return "Air Base Extension" # CBusLoxCAIRHandler
-    elif devType == 0x0D:
-        return "Dali Extension" # CBusLoxDaliHandler
-    elif devType == 0x0E:
-        return "Modbus 232 Extension" # unknown
-    elif devType == 0x0F:
-        return "Fröling Extension"
-    # CBusLoxC485VHandler seems to be related to valves, I have no idea what legacy extension uses it. It's "Comm485" with Protocol "4"
-
-    # the following are not devices on the bus itself,
-    # but rather reserved device types
-    elif devType == 0x00:
-        return "-Miniserver-"
-    elif devType == 0x10:
-        return "-NAT device-"
-    elif devType == 0x1F:
-        return "-Legacy Software Update-"
-    # the following are NAT devices, because legacy devices
-    # only use 4 bit for the device type
-    elif devType == 0x12:
-        return "Internorm Extension" # CBusLoxInternormHandler
-    elif devType == 0x13:
-        return "Tree Base Extension" # CBusTreeHandler
-    elif devType == 0x14:
-        return "DI Extension" # CBusLoxDigInHandler
-    elif devType == 0x15:
-        return "KNX Extension" # CBusKNXHandler
-    elif devType == 0x16:
-        return "AI Extension"
-    elif devType == 0x17:
-        return "AO Extension"
     return "device[0x%02X]" % devType
 def getDeviceSubType(devType):
     #  if devType==1: return "Air Base"
@@ -189,7 +181,7 @@ def onewire_crc8(data):
     crc = 0
     for i in range(len(data)):
         byte = data[i]
-        for b in range(8):
+        for _ in range(8):
             fb_bit = (crc ^ byte) & 0x01
             if fb_bit == 0x01:
                 crc = crc ^ 0x18
@@ -215,7 +207,7 @@ def stm32_crc32(bytes_arr):
         poly = 0x04C11DB7
         for i in range(256):
             c = i << 24
-            for j in range(8):
+            for _ in range(8):
                 c = (c << 1) ^ poly if (c & 0x80000000) else c << 1
             stm32_crc_table[i] = c & 0xFFFFFFFF
     length = len(bytes_arr)
@@ -254,30 +246,28 @@ def ROL(x, n, bits=32):
   """rotate left input x, by n bits"""
   return ROR(x, bits - n,bits)
 def RC6_PrepareKey(str):
-  key = 0
-  for c in str:
-    key += ord(c)
-  return key | 0xFEED0000
+    key = sum(ord(c) for c in str)
+    return key | 0xFEED0000
 def RC6_GenerateKey(initKey):
-  """generate key s[0... 2r+3] from given input userkey"""
-  L = (((initKey << 8) & 0x100) | (initKey << 24) | (initKey >> 24) | ((initKey >> 8) & 0x10)) & 0xFFFFFFFF
-  r=16 # rounds
-  w=32 # width in bits
-  modulo = 2**32
-  context_s=(2*r+4)*[0]
-  context_s[0]=0xB7E15163
-  for i in range(1,2*r+4):
-    context_s[i]=(context_s[i-1]+0x9E3779B9)%(2**w)
-  l = [L]
-  enlength = 1
-  v = 3*max(enlength,2*r+4)
-  A=B=i=j=0
-  for index in range(0,v):
-    A = context_s[i] = ROL((context_s[i] + A + B)%modulo,3)
-    B = l[j] = ROL((l[j] + A + B)%modulo,(A+B)%32) 
-    i = (i + 1) % (2*r + 4)
-    j = (j + 1) % enlength
-  return context_s
+    """generate key s[0... 2r+3] from given input userkey"""
+    L = (((initKey << 8) & 0x100) | (initKey << 24) | (initKey >> 24) | ((initKey >> 8) & 0x10)) & 0xFFFFFFFF
+    r=16 # rounds
+    w=32 # width in bits
+    modulo = 2**32
+    context_s=(2*r+4)*[0]
+    context_s[0]=0xB7E15163
+    for i in range(1,2*r+4):
+      context_s[i]=(context_s[i-1]+0x9E3779B9)%(2**w)
+    l = [L]
+    enlength = 1
+    v = 3*max(enlength,2*r+4)
+    A=B=i=j=0
+    for _ in range(v):
+        A = context_s[i] = ROL((context_s[i] + A + B)%modulo,3)
+        B = l[j] = ROL((l[j] + A + B)%modulo,(A+B)%32)
+        i = (i + 1) % (2*r + 4)
+        j = (j + 1) % enlength
+    return context_s
 def RC6_EncryptBlock(context,encoded):
   A,B,C,D = struct.unpack('<IIII', encoded)
   r=16
@@ -322,19 +312,23 @@ def RC6_DecryptBlock(context,encoded):
   C = (C + context[2*r + 3])%modulo
   return struct.pack('<IIII', A,B,C,D)
 def RC6_Encrypt(context,data):
-  blockSize = 16
-  data += '\0' * (blockSize-1)
-  data = data[:(len(data) / blockSize) * blockSize]
-  result = ''
-  for block in [data[i:i+blockSize] for i in range(0, len(data), blockSize)]:
-    result += RC6_EncryptBlock(context,block)
-  return result
+    blockSize = 16
+    data += '\0' * (blockSize-1)
+    data = data[:(len(data) / blockSize) * blockSize]
+    return ''.join(
+        RC6_EncryptBlock(context, block)
+        for block in [
+            data[i : i + blockSize] for i in range(0, len(data), blockSize)
+        ]
+    )
 def RC6_Decrypt(context,data):
-  blockSize = 16
-  result = ''
-  for block in [data[i:i+blockSize] for i in range(0, len(data), blockSize)]:
-    result += RC6_DecryptBlock(context,block)
-  return result
+    blockSize = 16
+    return ''.join(
+        RC6_DecryptBlock(context, block)
+        for block in [
+            data[i : i + blockSize] for i in range(0, len(data), blockSize)
+        ]
+    )
 
 def RSHash(key):
     # it seems a and b are switched by Loxone
@@ -377,7 +371,7 @@ def BPHash(key):
 ###############################################################################
 # A CAN bus message for the Loxone system
 ###############################################################################
-fragmentPool = dict()
+fragmentPool = {}
 class LoxMessageFragment(object):
     # this is used to be forwarded all arriving messages,
     # which allows to combine fragmented packages
@@ -490,10 +484,12 @@ class LoxCanLegacyMessage(LoxCanMessage):
 
     # this is not working, it is here just for reference
     def getFragmentedPackage(self, address, cmd, data):
+        if cmd == 0x0A:
+            return
         if cmd == 0x00:
-            return "# Air send container %s" % (binascii.hexlify(data))
+            return f"# Air send container {binascii.hexlify(data)}"
         elif cmd == 0x01:
-            return "# Air send MAC container %s" % (binascii.hexlify(data))
+            return f"# Air send MAC container {binascii.hexlify(data)}"
         elif cmd == 0x02:  # C485V
             pass
         elif cmd == 0x04:
@@ -506,7 +502,7 @@ class LoxCanLegacyMessage(LoxCanMessage):
             address = ((data[7] << 24) | (data[6] << 16) | (data[5] << 8) | (data[4])) * 8
             return "# Send Retry Page External:%#08x address:%08X %s" % (external, address, binascii.hexlify(data[8:]))
         elif cmd == 0x06:
-            return "# Send Config Data %s" % (binascii.hexlify(data))
+            return f"# Send Config Data {binascii.hexlify(data)}"
         elif cmd == 0x07:  # Dali
             pass
         elif cmd == 0x08:  # Dali
@@ -516,17 +512,14 @@ class LoxCanLegacyMessage(LoxCanMessage):
             if data[0] == 0x00 and data[1] == 0x00 and data[2] == 0x00 and data[3] == 0x00:
                 offset += 4
             packageSize = data[offset]
-            if packageSize > 1:  # Zero-Byte at the end of the string is ignored anyway
-                printfStr = data[offset + 1:-1].decode()
-                return '# Send Webservice Request "%s"' % (printfStr)
-            else:
+            if packageSize <= 1:
                 return '# Send Webservice Request ""'
-        elif cmd == 0x0A:  # C232
-            pass
+            printfStr = data[offset + 1:-1].decode()
+            return '# Send Webservice Request "%s"' % (printfStr)
         elif cmd == 0x0B:  # C485V
-            return "# Send Webservice %s" % (binascii.hexlify(data))
+            return f"# Send Webservice {binascii.hexlify(data)}"
         elif cmd == 0x0C:
-            return "# Air NAT entry %s" % (binascii.hexlify(data))
+            return f"# Air NAT entry {binascii.hexlify(data)}"
         elif cmd == 0x0D:
             return "# DMX Send Actor Type:%d, Slewrate:%d, Gamma:%s DMX Address:%d, Data:%d %d %d %d" % (
                 data[0],
@@ -568,9 +561,7 @@ class LoxCanLegacyMessage(LoxCanMessage):
             time = (data[8] + (data[9] << 8)) & 0xFFF
             if data[9] & 0x40:
                 time *= 10.0
-            percentStr = ""
-            if data[9] & 0x80:
-                percentStr = "/100%"
+            percentStr = "/100%" if data[9] & 0x80 else ""
             return (
                 "# DMX Composite Actor Type:%d, DMX Address:%d, Data:%d %d %d %d, %.1fsec%s"
                 % (
@@ -726,10 +717,7 @@ class LoxCanLegacyMessage(LoxCanMessage):
         self.fragmentData = []
 
     def __repr__(self):
-        if self.isServerMessage:
-            typeStr = "S"
-        else:
-            typeStr = "E"
+        typeStr = "S" if self.isServerMessage else "E"
         return "<Legacy %s:%s %02x %s %s>" % (
             typeStr,
             LoxCanMessage.serialString(self.serial),
@@ -751,7 +739,7 @@ class LoxCanLegacyMessage(LoxCanMessage):
                 fragment.Data = '\0' * fragment.Size
             elif fragment.Data != None:
                 fragment.Data = fragment.Data[:(packageIndex-1)*6] + message.data[2:] + fragment.Data[packageIndex*6:]
-                if packageIndex * 6 >= fragment.Size and fragment.Size > 0:
+                if packageIndex * 6 >= fragment.Size > 0:
                     fragment.Data = fragment.Data[: fragment.Size]
                     # add the complete command to the message
                     message.data = chr(0) + fragment.Data
@@ -825,7 +813,6 @@ class LoxCanLegacyMessage(LoxCanMessage):
     @property
     def extensionNAT(self):
         raise AttributeError
-        return 0
 
     @extensionNAT.setter
     def extensionNAT(self, extensionNAT):
@@ -834,7 +821,6 @@ class LoxCanLegacyMessage(LoxCanMessage):
     @property
     def flags(self):
         raise AttributeError
-        return 0
 
     @flags.setter
     def flags(self, flags):
@@ -843,7 +829,6 @@ class LoxCanLegacyMessage(LoxCanMessage):
     @property
     def deviceNAT(self):
         raise AttributeError
-        return 0
 
     @deviceNAT.setter
     def deviceNAT(self, deviceNAT):
@@ -929,30 +914,29 @@ class LoxCanLegacyMessage(LoxCanMessage):
                 inputOffset = 2
 
             def minAvgStr(value):
-                if value > 1000:
-                    if value == 1001:
-                        avgTime = 1 * 60 * 1000
-                    elif value == 1002:
-                        avgTime = 5 * 60 * 1000
-                    elif value == 1003:
-                        avgTime = 10 * 60 * 1000
-                    elif value == 1004:
-                        avgTime = 30 * 60 * 1000
-                    elif value == 1005:
-                        avgTime = 60 * 60 * 1000
-                    elif value == 1006:
-                        avgTime = 1 * 1000
-                    elif value == 1007:
-                        avgTime = 5 * 1000
-                    elif value == 1008:
-                        avgTime = 10 * 1000
-                    elif value == 1009:
-                        avgTime = 30 * 1000
-                    else:
-                        avgTime = 60 * 1000  # all other (illegal) cases
-                    return "avgTime(%ds)" % (avgTime / 1000)
-                else:
+                if value <= 1000:
                     return "minChange(%.2f)" % (value * 0.01)
+                if value == 1001:
+                    avgTime = 1 * 60 * 1000
+                elif value == 1002:
+                    avgTime = 5 * 60 * 1000
+                elif value == 1003:
+                    avgTime = 10 * 60 * 1000
+                elif value == 1004:
+                    avgTime = 30 * 60 * 1000
+                elif value == 1005:
+                    avgTime = 60 * 60 * 1000
+                elif value == 1006:
+                    avgTime = 1 * 1000
+                elif value == 1007:
+                    avgTime = 5 * 1000
+                elif value == 1008:
+                    avgTime = 10 * 1000
+                elif value == 1009:
+                    avgTime = 30 * 1000
+                else:
+                    avgTime = 60 * 1000  # all other (illegal) cases
+                return "avgTime(%ds)" % (avgTime / 1000)
 
             def convertValueToMilliseconds(value):
                 msValue = value >> 3
@@ -973,7 +957,6 @@ class LoxCanLegacyMessage(LoxCanMessage):
                     return msValue * 600000  # 10min
                 elif expValue == 7:
                     return msValue * 3600000  # 1hour
-                pass
 
             analogInDelayValues0 = self.data[4] | (((self.data[1] >> 0) & 3) << 8)
             analogInDelayValues1 = self.data[6] | (((self.data[1] >> 4) & 3) << 8)
@@ -1340,10 +1323,7 @@ class LoxCanNATMessage(LoxCanMessage):
         self.isTreeMessage = isTreeMessage
 
     def __repr__(self):
-        if self.isServerMessage:
-            typeStr = "S"
-        else:
-            typeStr = "E"
+        typeStr = "S" if self.isServerMessage else "E"
         if self.type == 0x10:  # Loxone Link
             natStr = "NAT "
         elif self.type == 0x11:  # Tree Bus
@@ -1391,7 +1371,6 @@ class LoxCanNATMessage(LoxCanMessage):
     @property
     def serial(self):
         raise AttributeError
-        return 0
 
     @serial.setter
     def serial(self, serial):
@@ -1429,9 +1408,7 @@ class LoxCanNATMessage(LoxCanMessage):
 
     @isServerMessage.setter
     def isServerMessage(self, isServerMessage):
-        flags = 0
-        if isServerMessage:
-            flags = 6  # two bits in the flags are set to id packages from the server
+        flags = 6 if isServerMessage else 0
         self.address = (self.address & 0xFF1FFFFF) | (flags << 20)
 
     @property
@@ -1440,10 +1417,7 @@ class LoxCanNATMessage(LoxCanMessage):
 
     @isTreeMessage.setter
     def isTreeMessage(self, isTreeMessage):
-        if isTreeMessage:
-            self.type = 0x11
-        else:
-            self.type = 0x10
+        self.type = 0x11 if isTreeMessage else 0x10
 
     @property
     def deviceNAT(self):

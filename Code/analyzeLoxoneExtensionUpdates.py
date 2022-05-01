@@ -24,9 +24,7 @@ def ROL(x, n, bits=32):
   """rotate left input x, by n bits"""
   return ROR(x, bits - n,bits)
 def RC6_PrepareKey(str):
-  key = 0
-  for c in str:
-    key += ord(c)
+  key = sum(ord(c) for c in str)
   return key | 0xFEED0000
 def RC6_GenerateKey(initKey):
   """generate key s[0... 2r+3] from given input userkey"""
@@ -42,9 +40,9 @@ def RC6_GenerateKey(initKey):
   enlength = 1
   v = 3*max(enlength,2*r+4)
   A=B=i=j=0
-  for index in range(0,v):
+  for _ in range(v):
     A = context_s[i] = ROL((context_s[i] + A + B)%modulo,3)
-    B = l[j] = ROL((l[j] + A + B)%modulo,(A+B)%32) 
+    B = l[j] = ROL((l[j] + A + B)%modulo,(A+B)%32)
     i = (i + 1) % (2*r + 4)
     j = (j + 1) % enlength
   return context_s
@@ -95,16 +93,14 @@ def RC6_Encrypt(context,data):
   blockSize = 16
   data += '\0' * (blockSize-1)
   data = data[:(len(data) / blockSize) * blockSize]
-  result = ''
-  for block in [data[i:i+blockSize] for i in range(0, len(data), blockSize)]:
-    result += RC6_EncryptBlock(context,block)
-  return result
+  return ''.join(
+      RC6_EncryptBlock(context, block) for block in
+      [data[i:i + blockSize] for i in range(0, len(data), blockSize)])
 def RC6_Decrypt(context,data):
   blockSize = 16
-  result = ''
-  for block in [data[i:i+blockSize] for i in range(0, len(data), blockSize)]:
-    result += RC6_DecryptBlock(context,block)
-  return result
+  return ''.join(
+      RC6_DecryptBlock(context, block) for block in
+      [data[i:i + blockSize] for i in range(0, len(data), blockSize)])
 
 def versionStr(version):
   v1 = version / 1000000
@@ -158,91 +154,139 @@ def productBySubID(devType):
   return "treeDev[0x%04X]" % devType
 
 def productToProductName(product):
-  if product == 'AirBase': return 'Air Base Extension'
-  elif product == 'AmbientLight': return 'Touch Nightlight Air'
-  elif product == 'BackwashValve': return 'AquaStar Air'
-#  elif product == 'CapTouch': return 'CapTouch'
-  elif product == 'CorridorLightAir': return 'Corridor Light Air'
-  elif product == 'FirealarmAir': return 'Smoke Detector Air'
-  elif product == 'GeigerRemote': return 'GEIGER Remote LC Air'
-  elif product == 'IrAir': return 'IR Control Air'
-  elif product == 'KeypadAir': return 'NFC Code Touch Air'
-  elif product == 'InternormFanAir': return 'Internorm Fan Air'
-  elif product == 'LeafAir': return 'Leaf 1 Air'
-  elif product == 'LeafTouchAir': return 'Leaf Switch Sensor'
-  elif product == 'MeterInt': return 'Meter Reader IR Air'
-  elif product == 'MultiExtensionAir': return 'Multi Extension Air'
-  elif product == 'NanoDimmer_Touch': return 'Nano Dimmer Air'
-  elif product == 'NanoIO_Keypad': return 'Nano IO NFC Code Touch Air'
-  elif product == 'NanoIO_Touch': return 'Nano IO Touch Air'
-  elif product == 'Noisemaker': return 'Alarm Siren Air'
-  elif product == 'PendantLightRgbwAir': return 'Pendant Light RGBW Air'
-  elif product == 'PresenceAir': return 'Motion Sensor'
-  elif product == 'RemoteAir': return 'Remote Air'
-  elif product == 'RgbwDimmerAir': return 'RGBW 24V Dimmer'
-  elif product == 'Roomsensor': return 'Temperature & Humidity Sensor Air'
-  elif product == 'RoomsensorCO2': return 'Room Comfort Sensor Air'
-  elif product == 'RoomsensorAir': return 'Roomsensor Air'
-  elif product == 'ShadeActuatorAir': return 'Shading Actuator Air'
-#  elif product == 'ShelfControl': return 'ShelfControl'
-  elif product == 'SmartSocketAir': return 'Smart Socket Air'
-#  elif product == 'SocketDimmerSeparator': return 'SocketDimmerSeparator'
-  elif product == 'SteakThermo': return 'Touch & Grill Air'
-  elif product == 'TouchPureAir': return 'Touch Pure Air'
-  elif product == 'TouchPureAir_V2': return 'Touch Pure Air V2'
-  elif product == 'TouchStoneAir': return 'Touch Surface Air'
-  elif product == 'TubemotorAir': return 'GEIGER SOLIDline Air'
-  elif product == 'ValveAir': return 'Loxone Valve Actuator Air'
-  elif product == 'VenBlindmotorAir': return 'GEIGER Blind Motor GJ56 Air'
-  elif product == 'VentAir': return 'Damper Air'
-  elif product == 'WaterSensor': return 'Water Sensor Air'
-  elif product == 'WeatherStationAir': return 'Weather Station Air'
-  elif product == 'WindowHandle': return 'Window Handle Air'
-  elif product == 'WindowIntegralAir': return 'Window Integral Air'
-  elif product == 'WindowSensor': return 'Door & Window Contact Air'
-  elif product == 'ZipmotorAir': return 'GEIGER SOLIDline Zip Air'
-
-  elif product == 'LoxC1WR': return '1-Wire Extension'
-  elif product == 'LoxCDMX': return 'DMX Extension'
-  elif product == 'LoxCENO': return 'EnOcean Extension'
-  elif product == 'LoxCREL': return 'Relay Extension'
-  elif product == 'LoxDALI': return 'DALI Extension'
-  elif product == 'LoxDIMM': return 'Dimmer Extension'
-  elif product == 'LoxDIMM_V2': return 'Dimmer Extension V2'
-  elif product == 'LoxFroeling': return 'Fröling Extension'
-  elif product == 'LoxIR': return 'IR Extension'
-  elif product == 'LoxMORE': return 'Extension'
-  elif product == 'LoxC232': return 'RS232 Extension'
-  elif product == 'LoxC485': return 'RS485 Extension'
-  elif product == 'LoxI485': return 'IR Extension'
-  elif product == 'LoxModbus232': return 'Modbus RS232 Extension'
-  elif product == 'LoxModbus485': return 'Modbus Extension'
-  elif product == 'Miniserver': return 'Miniserver'
+  if product == 'AirBase':
+    if product == 'AirBase': return 'Air Base Extension'
+  elif product == 'AmbientLight':
+    return 'Touch Nightlight Air'
+  elif product == 'BackwashValve':
+    return 'AquaStar Air'
+  elif product == 'CorridorLightAir':
+    return 'Corridor Light Air'
+  elif product == 'FirealarmAir':
+    return 'Smoke Detector Air'
+  elif product == 'GeigerRemote':
+    return 'GEIGER Remote LC Air'
+  elif product == 'InternormFanAir':
+    return 'Internorm Fan Air'
+  elif product == 'IrAir':
+    return 'IR Control Air'
+  elif product == 'KeypadAir':
+    return 'NFC Code Touch Air'
+  elif product == 'LeafAir':
+    return 'Leaf 1 Air'
+  elif product == 'LeafTouchAir':
+    return 'Leaf Switch Sensor'
+  elif product == 'LoxC1WR':
+    return '1-Wire Extension'
+  elif product == 'LoxC232':
+    return 'RS232 Extension'
+  elif product == 'LoxC485':
+    return 'RS485 Extension'
+  elif product == 'LoxCDMX':
+    return 'DMX Extension'
+  elif product == 'LoxCENO':
+    return 'EnOcean Extension'
+  elif product == 'LoxCREL':
+    return 'Relay Extension'
+  elif product == 'LoxDALI':
+    return 'DALI Extension'
+  elif product == 'LoxDIMM':
+    return 'Dimmer Extension'
+  elif product == 'LoxDIMM_V2':
+    return 'Dimmer Extension V2'
+  elif product == 'LoxFroeling':
+    return 'Fröling Extension'
+  elif product in ['LoxIR', 'LoxI485']:
+    return 'IR Extension'
+  elif product == 'LoxMORE':
+    return 'Extension'
+  elif product == 'LoxModbus232':
+    return 'Modbus RS232 Extension'
+  elif product == 'LoxModbus485':
+    return 'Modbus Extension'
+  elif product == 'MeterInt':
+    return 'Meter Reader IR Air'
+  elif product == 'Miniserver':
+    return 'Miniserver'
+  elif product == 'MultiExtensionAir':
+    return 'Multi Extension Air'
+  elif product == 'NanoDimmer_Touch':
+    return 'Nano Dimmer Air'
+  elif product == 'NanoIO_Keypad':
+    return 'Nano IO NFC Code Touch Air'
+  elif product == 'NanoIO_Touch':
+    return 'Nano IO Touch Air'
+  elif product == 'Noisemaker':
+    return 'Alarm Siren Air'
+  elif product == 'PendantLightRgbwAir':
+    return 'Pendant Light RGBW Air'
+  elif product == 'PresenceAir':
+    return 'Motion Sensor'
+  elif product == 'RemoteAir':
+    return 'Remote Air'
+  elif product == 'RgbwDimmerAir':
+    return 'RGBW 24V Dimmer'
+  elif product == 'Roomsensor':
+    return 'Temperature & Humidity Sensor Air'
+  elif product == 'RoomsensorAir':
+    return 'Roomsensor Air'
+  elif product == 'RoomsensorCO2':
+    return 'Room Comfort Sensor Air'
+  elif product == 'ShadeActuatorAir':
+    return 'Shading Actuator Air'
+  elif product == 'SmartSocketAir':
+    return 'Smart Socket Air'
+  elif product == 'SteakThermo':
+    return 'Touch & Grill Air'
+  elif product == 'TouchPureAir':
+    return 'Touch Pure Air'
+  elif product == 'TouchPureAir_V2':
+    return 'Touch Pure Air V2'
+  elif product == 'TouchStoneAir':
+    return 'Touch Surface Air'
+  elif product == 'TubemotorAir':
+    return 'GEIGER SOLIDline Air'
+  elif product == 'ValveAir':
+    return 'Loxone Valve Actuator Air'
+  elif product == 'VenBlindmotorAir':
+    return 'GEIGER Blind Motor GJ56 Air'
+  elif product == 'VentAir':
+    return 'Damper Air'
+  elif product == 'WaterSensor':
+    return 'Water Sensor Air'
+  elif product == 'WeatherStationAir':
+    return 'Weather Station Air'
+  elif product == 'WindowHandle':
+    return 'Window Handle Air'
+  elif product == 'WindowIntegralAir':
+    return 'Window Integral Air'
+  elif product == 'WindowSensor':
+    return 'Door & Window Contact Air'
+  elif product == 'ZipmotorAir':
+    return 'GEIGER SOLIDline Zip Air'
   return None
 
 def productByFilename(filename):
   filename,extension = filename.split('.')
   version,product = filename.split('_',1)
-  productName = productToProductName(product)
-  if productName:
+  if productName := productToProductName(product):
     return productName
   RC6context = RC6_GenerateKey(0x254A21) # a constant for firmware name names
   encryptedBlock = binascii.unhexlify(product)
   product = RC6_Decrypt(RC6context,encryptedBlock).rstrip('\0')
-  productName = productToProductName(product)
-  if productName:
+  if productName := productToProductName(product):
     return productName
   return product
 # STM32 CRC32 calculation, e.g. used for updates. Always 4 byte-aligned packages!
 stm32_crc_table = {}
 def generate_stm32_crc32_table():
-    global stm32_crc_table
-    poly=0x04C11DB7
-    for i in range(256):
-        c = i << 24
-        for j in range(8):
-            c = (c << 1) ^ poly if (c & 0x80000000) else c << 1
-        stm32_crc_table[i] = c & 0xffffffff
+  global stm32_crc_table
+  poly=0x04C11DB7
+  for i in range(256):
+    c = i << 24
+    for _ in range(8):
+      c = (c << 1) ^ poly if (c & 0x80000000) else c << 1
+    stm32_crc_table[i] = c & 0xffffffff
 generate_stm32_crc32_table()
 def stm32_crc32(bytes_arr):
   length = len(bytes_arr)

@@ -75,7 +75,7 @@ def downloadReport(longitude, latitude, asl):
 
 def loxoneWeatherIcon(weatherReportHourly):
     iconDarksky = weatherReportHourly['icon']
-    if iconDarksky == 'clear-day' or iconDarksky == 'clear-night':
+    if iconDarksky in ['clear-day', 'clear-night']:
         iconID = 1 # wolkenlos
     elif iconDarksky == 'rain':
         iconID = 23 # Regen
@@ -83,20 +83,16 @@ def loxoneWeatherIcon(weatherReportHourly):
         iconID = 24 # Schneefall
     elif iconDarksky == 'sleet':
         iconID = 35 # Schneeregen
-#    elif iconDarksky == 'wind':
-#        pass
     elif iconDarksky == 'fog':
         iconID = 16 # Nebel
     elif iconDarksky == 'cloudy':
         iconID = 7 # Wolkig
-    elif iconDarksky == 'partly-cloudy-day' or iconDarksky == 'partly-cloudy-night':
+    elif iconDarksky in ['partly-cloudy-day', 'partly-cloudy-night']:
         iconID = 7 # Wolkig
     elif iconDarksky == 'hail':
         iconID = 35 # Schneeregen
     elif iconDarksky == 'thunderstorm':
         iconID = 28 # Gewitter
-#    elif iconDarksky == 'tornado':
-#        iconID = 29 # kräftiges Gewitter
     else:
         iconID = 7 # Wolkig
 
@@ -127,8 +123,7 @@ def loxoneWeatherIcon(weatherReportHourly):
 
 # Loxone is using www.meteoblue.com for their weather data, it's the same format!
 def generateCSV(weatherReport, asl):
-    csv = ""
-    csv += "<mb_metadata>\n"
+    csv = "" + "<mb_metadata>\n"
     csv += "id;name;longitude;latitude;height (m.asl.);country;timezone;utc-timedifference;sunrise;sunset;\n"
     csv += "local date;weekday;local time;temperature(C);feeledTemperature(C);windspeed(km/h);winddirection(degr);wind gust(km/h);low clouds(%);medium clouds(%);high clouds(%);precipitation(mm);probability of Precip(%);snowFraction;sea level pressure(hPa);relative humidity(%);CAPE;picto-code;radiation (W/m2);\n"
     csv += "</mb_metadata><valid_until>{:{dfmt}}</valid_until>\n".format(licenseExpiryDate, dfmt='%Y-%m-%d')
@@ -175,8 +170,12 @@ def generateCSV(weatherReport, asl):
     return csv
 
 def generateXML(weatherReport, asl):
-    xml = '<?xml version="1.0"?>'
-    xml += '<metdata_feature_collection p="m" valid_until="{:{dfmt}}">'.format(licenseExpiryDate, dfmt='%Y-%m-%d')
+    xml = (
+        '<?xml version="1.0"?>'
+        + '<metdata_feature_collection p="m" valid_until="{:{dfmt}}">'.format(
+            licenseExpiryDate, dfmt='%Y-%m-%d'
+        )
+    )
 
     for hourly in weatherReport['hourly']['data']:
         time = datetime.datetime.fromtimestamp(hourly['time'])
@@ -216,10 +215,7 @@ class Proxy(SimpleHTTPServer.SimpleHTTPRequestHandler):
             self.send_header('Vary', 'Accept-Encoding')
             self.send_header('Connection', 'close')
             self.send_header('Transfer-Encoding', 'chunked')
-            if 'asl' in query:
-                asl = int(query['asl'][0])
-            else:
-                asl = 0
+            asl = int(query['asl'][0]) if 'asl' in query else 0
             lat,long = query['coord'][0].split(',')
             if os.path.isfile('weather.json'):
                 jsonReport = json.loads(open('weather.json').read())

@@ -23,7 +23,7 @@ def stm32_crc32(bytes_arr):
         poly = 0x04C11DB7
         for i in range(256):
             c = i << 24
-            for j in range(8):
+            for _ in range(8):
                 c = (c << 1) ^ poly if (c & 0x80000000) else c << 1
             stm32_crc_table[i] = c & 0xFFFFFFFF
     length = len(bytes_arr)
@@ -57,14 +57,13 @@ f = archive.open('LOXONE_SD.cdr')
 
 def readSector(sectorNumber):
     f.seek(sectorNumber*512, 0)
-    sectorData = f.read(512)
-    return sectorData
+    return f.read(512)
 def formatData(data,n=64):
     str = binascii.hexlify(data).decode('utf-8')
     return '\n'.join([str[i:i+n] for i in range(0, len(str), n)])
 
 def parseFSInfoStruct(data):
-    if struct.unpack('<I', data[0x000:4])[0] != 0x41615252:
+    if struct.unpack('<I', data[:4])[0] != 0x41615252:
         return None
     if struct.unpack('<I', data[0x1FC:])[0] != 0xAA550000:
         return None
@@ -87,8 +86,8 @@ if not ll:
     if volumeOffset > 500000:
         sys.exit(-1)
     ll = parseFSInfoStruct(readSector(volumeOffset+1))
-    if not ll:
-        sys.exit(-2)
+if not ll:
+    sys.exit(-2)
 rootOffset,imageOffset,filesystemOffset,filesystemEndOffset,clusterSize = ll
 rootOffset += volumeOffset
 imageOffset += rootOffset
@@ -102,16 +101,10 @@ def dtstr(timesstamp):
     # 1230768000 = 1.1.2009 Loxone Starttime
     return datetime.datetime.fromtimestamp(timesstamp+1230768000)
 def psector(sector,count=1):
-    if True: # Offsets vs. Sectornumber and Offsets
-        if count == 1:
-            return '%#010x' % ((sector+filesystemOffset)*0x200)
-        else:
-            return '%#010x - %#010x (%d)' % ((sector+filesystemOffset)*0x200,(sector+filesystemOffset+count)*0x200-1,count)
+    if count == 1:
+        return '%#010x' % ((sector+filesystemOffset)*0x200)
     else:
-        if count == 1:
-            return '#%#08x/%#010x' % (sector,(sector+filesystemOffset)*0x200)
-        else:
-            return '#%#08x/%#010x - #%#08x/%#010x (%d)' % (sector,(sector+filesystemOffset)*0x200,sector+count-1,(sector+filesystemOffset+count)*0x200-1,count)
+        return '%#010x - %#010x (%d)' % ((sector+filesystemOffset)*0x200,(sector+filesystemOffset+count)*0x200-1,count)
 def loadSector(sector):
     data = readSector(sector)
     magic,versionHigh,versionLow,nextSector = struct.unpack('<IIII', data[:16])
@@ -125,14 +118,8 @@ def loadSectorWithVersion(sector):
     s2 = loadSector(sector+1)
     if not s1 and not s2:
         return
-    if s1:
-        (magic1,version1,nextSector1,data1) = s1
-    else:
-        (magic1,version1,nextSector1,data1) = [0] * 4
-    if s2:
-        (magic2,version2,nextSector2,data2) = s2
-    else:
-        (magic2,version2,nextSector2,data2) = [0] * 4
+    (magic1,version1,nextSector1,data1) = s1 or [0] * 4
+    (magic2,version2,nextSector2,data2) = s2 or [0] * 4
     if version1 > version2:
         data = data1
         version = version1
@@ -174,7 +161,7 @@ def loadRange(sector):
             (magic2,version2,headerSector2,nextSector,data2) = s
             clusters2 = struct.unpack('<62I', data2[0xF4:0xF4+62*4])
             clusters += clusters2
-    elif magic == 'LXFF' or magic == 'LXFR':
+    elif magic in ['LXFF', 'LXFR']:
         clusters = struct.unpack('<86I', data[0x94:0x94+86*4])
         while nextSector != 0:
             s = loadSectorWithVersion(filesystemOffset+nextSector)
@@ -212,37 +199,34 @@ for sector in range(filesystemOffset,filesystemEndOffset,2):
     magic = magicDict.get(magic, magic)
     label = None
 
-    if magic=='LxFs Directory':
+    if magic == 'LxFs Directory':
         label = data[:0x80].decode('utf-8').rstrip('\0')
         parentSector,createTime = struct.unpack('<II', data[0x80:0x80+2*4])
-        if parentSector == 0 and len(label)==0:
-            label = '"/" (%s)' % (dtstr(createTime))
-        else:
-            label = '"%s" (%s %s)' % (label,psector(parentSector),dtstr(createTime))
-        r = loadRange(sector)
-        if r:
+        label = (
+            '"/" (%s)' % (dtstr(createTime))
+            if parentSector == 0 and len(label) == 0
+            else '"%s" (%s %s)'
+            % (label, psector(parentSector), dtstr(createTime))
+        )
+
+        if r := loadRange(sector):
             (_,_,_,lastSector,_,clusters) = r
-            cs = []
-            for c in clusters:
-                if not c:
-                    continue
-                cs.append(psector(c))
-            label = label + ' [' + ' '.join(cs) + ']'
+            cs = [psector(c) for c in clusters if c]
+            label = f'{label} [' + ' '.join(cs) + ']'
             skip2Sector = lastSector
-    elif magic=='LxFs File':
+    elif magic == 'LxFs File':
         label = data[:0x80].decode('utf-8')
         parentSector,createTime,modifyTime,fileSize,maxFilesize = struct.unpack('<IIIII', data[0x80:0x80+5*4])
-        if createTime == modifyTime:
-            dstr = 'ts:%s' % (dtstr(modifyTime))
-        else:
-            dstr = 'tsc:%s tsm:%s' % (dtstr(createTime),dtstr(modifyTime))
+        dstr = (
+            f'ts:{dtstr(modifyTime)}'
+            if createTime == modifyTime
+            else f'tsc:{dtstr(createTime)} tsm:{dtstr(modifyTime)}'
+        )
+
         label = '"%s" (parent:%s %s size:%dkb maxsize:%dkb)' % (label,psector(parentSector),dstr,fileSize/0x400,maxFilesize/0x400)
-        r = loadRange(sector)
-        if r:
+        if r := loadRange(sector):
             (_,_,_,lastSector,_,clusters) = r
-            cs = []
-            for c in clusters:
-                cs.append(psector(c))
+            cs = [psector(c) for c in clusters]
             #label = label + ' [' + ' '.join(cs) + ']'
             skip2Sector = lastSector
 
@@ -252,27 +236,20 @@ for sector in range(filesystemOffset,filesystemEndOffset,2):
         print("%s - %5d - %s" % (psector(sector-filesystemOffset),version,magic))
 
     if magic == 'LxFs Allocation':
-        r = loadRange(sector)
-        if r:
+        if r := loadRange(sector):
             (magic,version,headerSector,lastSector,data,clusters) = r
             skip2Sector = lastSector
             print('Allocation Table:')
             bitmaskStr = ''
             for bitmask in clusters:
-                for bit in range(0,31):
-                    if bitmask & (1<<bit):
-                        bitmaskStr += '1'
-                    else:
-                        bitmaskStr += '0'
+                for bit in range(31):
+                    bitmaskStr += '1' if bitmask & (1<<bit) else '0'
             #print(bitmaskStr)
             sector = 0
             while sector < len(bitmaskStr):
                 isUsed = bitmaskStr[sector]
                 startSector = sector
-                while sector < len(bitmaskStr) and bitmaskStr[sector] == isUsed:
+                while sector < len(bitmaskStr) and isUsed == isUsed:
                     sector += 1
-                if isUsed == '0':
-                    isUsed = 'E'
-                else:
-                    isUsed = 'U'
+                isUsed = 'E' if isUsed == '0' else 'U'
                 print('%c%7d : %s - %s' % (isUsed,sector-startSector,psector(startSector),psector(sector-1)))

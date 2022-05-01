@@ -29,9 +29,7 @@ def ROL(x, n, bits=32):
   """rotate left input x, by n bits"""
   return ROR(x, bits - n,bits)
 def RC6_PrepareKey(str):
-  key = 0
-  for c in str:
-    key += ord(c)
+  key = sum(ord(c) for c in str)
   return key | 0xFEED0000
 def RC6_GenerateKey(initKey):
   """generate key s[0... 2r+3] from given input userkey"""
@@ -47,9 +45,9 @@ def RC6_GenerateKey(initKey):
   enlength = 1
   v = 3*max(enlength,2*r+4)
   A=B=i=j=0
-  for index in range(0,v):
+  for _ in range(v):
     A = context_s[i] = ROL((context_s[i] + A + B)%modulo,3)
-    B = l[j] = ROL((l[j] + A + B)%modulo,(A+B)%32) 
+    B = l[j] = ROL((l[j] + A + B)%modulo,(A+B)%32)
     i = (i + 1) % (2*r + 4)
     j = (j + 1) % enlength
   return context_s
@@ -100,16 +98,14 @@ def RC6_Encrypt(context,data):
   blockSize = 16
   data += '\0' * (blockSize-1)
   data = data[:(len(data) / blockSize) * blockSize]
-  result = ''
-  for block in [data[i:i+blockSize] for i in range(0, len(data), blockSize)]:
-    result += RC6_EncryptBlock(context,block)
-  return result
+  return ''.join(
+      RC6_EncryptBlock(context, block) for block in
+      [data[i:i + blockSize] for i in range(0, len(data), blockSize)])
 def RC6_Decrypt(context,data):
   blockSize = 16
-  result = ''
-  for block in [data[i:i+blockSize] for i in range(0, len(data), blockSize)]:
-    result += RC6_DecryptBlock(context,block)
-  return result
+  return ''.join(
+      RC6_DecryptBlock(context, block) for block in
+      [data[i:i + blockSize] for i in range(0, len(data), blockSize)])
 def LoxDecryptFilename(hexstr):
     RC6context = RC6_GenerateKey(0x254A21) # a constant for firmware name names
     return RC6_Decrypt(RC6context,binascii.unhexlify(hexstr)).rstrip('\0')
@@ -160,12 +156,12 @@ else:
 print "File length                 : %ld bytes" % fileSize
 
 def cleanupFilename(filename):
-    try:
-        fname,ext = filename.split('.')
-        version,hexstr = fname.split('_')
-        return '%s_%s.%s' % (version,LoxDecryptFilename(hexstr),ext)
-    except:
-        return filename
+  try:
+    fname,ext = filename.split('.')
+    version,hexstr = fname.split('_')
+    return f'{version}_{LoxDecryptFilename(hexstr)}.{ext}'
+  except:
+      return filename
 
 version = updateFilename.split('_')[0]
 subdir = 'update%s_%s' % (msversion,version)

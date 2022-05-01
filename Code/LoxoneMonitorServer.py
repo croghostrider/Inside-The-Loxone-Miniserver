@@ -13,9 +13,8 @@ strDict = {}
 try:
     f = open('./sys/sys_ENG/ENG.xml')
     for line in f.readlines():
-        m = re.search('<String IDV="(\d+?)" Text="(.*?)"/>', line)
-        if m:
-            strDict[int(m.group(1))] = m.group(2)
+        if m := re.search('<String IDV="(\d+?)" Text="(.*?)"/>', line):
+            strDict[int(m[1])] = m[2]
 except:
     pass
 data = ''
@@ -59,7 +58,6 @@ def parsePackageHardware(pkg):
     print("Digital In %04x, Relays %04x" % (digitalIn,relays), end=' ')
     print("Analog In %6.3fV,%6.3fV,%6.3fV,%6.3fV" % (analog1In*10.0/4095,analog2In*10.0/4095,analog3In*10.0/4095,analog4In*10.0/4095), end=' ')
     print("Analog Out %6.3fV,%6.3fV,%6.3fV,%6.3fV" % (analog1Out*10.0/4095,analog2Out*10.0/4095,analog3Out*10.0/4095,analog4Out*10.0/4095))
-    pass
 def parsePackageTasks(pkg,strType):
     global cycleDeltaTime
     print()
@@ -72,10 +70,7 @@ def parsePackageTasks(pkg,strType):
             thread = strDict[taskID]
             if '%' in thread:
                 thread = thread % 0
-        if cycleDeltaTime == 0:
-            cpuLoad = 0
-        else:
-            cpuLoad = taskDeltaTime*100.0/cycleDeltaTime
+        cpuLoad = 0 if cycleDeltaTime == 0 else taskDeltaTime*100.0/cycleDeltaTime
         timeoutStr = 'endless'
         if timeoutCounter != 0xFFFFFFFF:
             timeoutStr = '%d' % timeoutCounter
@@ -90,14 +85,11 @@ def parsePackageTasks(pkg,strType):
                 str = strDict[strType]
                 if '%' in str:
                     str = str % strValue
-                stateStr += ' ' + str
+                stateStr += f' {str}'
         print('%10s %5.2f %8s %5d/%-5d %10d %d %-16s %d %d' % (thread, taskDeltaTime*100.0/cycleDeltaTime, timeoutStr, usedStackSize*4,stackSize*4, contextSwitches, priorityState,stateStr, mem,numberMem))
-    pass
 def parsePackageLogging(pkg,strType,parameterCount):
     offset = 28
-    format = '%s'
-    if strType in strDict:
-        format = strDict[strType]
+    format = strDict[strType] if strType in strDict else '%s'
     parameter = []
     while parameterCount > 0:
         parameterCount -= 1
@@ -139,28 +131,13 @@ def parsePackageLogging(pkg,strType,parameterCount):
             print(format % tuple(parameter))
     except:
         print(format,parameter)
-    pass
 def parsePackageContent(pkg):
     header,size,xorval,parameterCount,strType,eventCounter,idlems,currentTime,ipaddr,usedMem,f24 = struct.unpack('<HHBBHHHIIII', pkg[:28])
     timestr = datetime.utcfromtimestamp(currentTime + 1230768000 + idlems / 1000).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
     ipaddrstr = '%d.%d.%d.%d' % (ipaddr&0xFF,(ipaddr>>8)&0xFF,(ipaddr>>16)&0xFF,(ipaddr>>24)&0xFF)
-    # There are two independent event counters, one for strType < 0xFFF0 and one for strType >= 0xFFF0
-    # This can be used to filter out duplicates
-    if strType >= 0xFFF0:
-        #print('%s' % (timestr), end=' ')
-        if strType == 0xFFFF:
-            #parsePackageSystem(pkg)
-            pass
-        elif strType == 0xFFFE:
-            #parsePackageHardware(pkg)
-            pass
-        elif strType >= 0xFFF0 and strType <= 0xFFFD:
-            #parsePackageTasks(pkg,strType)
-            pass
     if strType < 0xFFF0:
-        print('%s' % (timestr), end=' ')
+        print(f'{timestr}', end=' ')
         parsePackageLogging(pkg,strType,parameterCount)
-        pass
 def parsePackage(data):
     # validate package
     if len(data)<2:
